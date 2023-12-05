@@ -1,147 +1,136 @@
-/*
-  Запись файлов из чата в SPIFFS при помощи LittleFS.
-  Перейди на IP адрес платы, чтобы попасть в файловый менеджер.
-  Закинь файл в чат, он скачается и будет доступен для просмотра
-*/
-
-#define WIFI_SSID "TP-Link_0CB4"
-#define WIFI_PASS "81929009"
-#define BOT_TOKEN "6844318548:AAFtIcv-9L6eVVDkP4E3c552-D3kIMkj-bg"
-#define CHAT_ID "397325574"
-
-#include <FastBot.h>
-FastBot bot(BOT_TOKEN);
-
-// для проверки файлов (веб-файловый менеджер)
-#include <LittleFS.h>
-
-#ifdef ESP8266
-#include <ESP8266WebServer.h>
+#include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
-#include <WiFiClientSecureBearSSL.h>
-ESP8266WebServer server(80);
-#else
-#include <WebServer.h>
-WebServer server(80);
-#endif
+#include <UniversalTelegramBot.h>
+#include <ESP8266TrueRandom.h>
+#include "LittleFS.h"
 
-void connectWiFi();
-void setWebface();
-void newMsg(FB_msg& msg);
+#define WIFI_SSID "Keenetic-0982"
+#define WIFI_PASSWORD "Jh9tjDvU"
+#define BOT_TOKEN "6557872997:AAGxV647TEkipfrIFkzHNRtArsDuUqxvC74"
+const unsigned long BOT_MTBS = 100;
+X509List cert(TELEGRAM_CERTIFICATE_ROOT);
+WiFiClientSecure secured_client;
+UniversalTelegramBot bot(BOT_TOKEN, secured_client);
+unsigned long bot_lasttime;
+int ledStatus = 0;
 
-void setup() {
-  connectWiFi();
-  Serial.println(WiFi.localIP());
-  bot.attach(newMsg);
-  setWebface();
+int getCarbonSensorInfo(int sensor_id){
+    if (sensor_id == 0)
+    {
+        return ESP8266TrueRandom.random(300, 1200);
+    }
+    if (sensor_id == 1)
+    {
+        return ESP8266TrueRandom.random(300, 1200);
+    }
+    return INT_MAX;
+}
+int getHumiditySensorInfo(int sensor_id){
+    if (sensor_id == 0)
+    {
+        return ESP8266TrueRandom.random(0, 100);
+    }
+    if (sensor_id == 1)
+    {
+        return ESP8266TrueRandom.random(0, 100);
+    }
+    return INT_MAX;
+}
+int getTemperatureSensorInfo(int sensor_id){
+    if (sensor_id == 0)
+    {
+        return ESP8266TrueRandom.random(-20, 40);
+    }
+    if (sensor_id == 1)
+    {
+        return ESP8266TrueRandom.random(-20, 40);
+    }
+    return INT_MAX;
 }
 
-// обработчик сообщений
-void newMsg(FB_msg& msg) {
-  // выводим всю информацию о сообщении
-  Serial.println(msg.toString());
 
-  if (msg.isFile) {                     // это файл
-    Serial.print("Downloading ");
-    Serial.println(msg.fileName);
-
-    bool OK = false;                    // статус
-    String path = '/' + msg.fileName;   // вида /filename.xxx
-    File f = LittleFS.open(path, "w");  // открываем для записи
-
-    if (f) {                            // файл открылся/создался
-      HTTPClient http;
-
-#ifdef ESP8266                          // esp8266 требует SSl
-      BearSSL::WiFiClientSecure client;
-      client.setInsecure();
-      http.begin(client, msg.fileUrl);  // пингуем файл
-#else                                   // esp32 сама умеет SSL
-      http.begin(msg.fileUrl);          // пингуем файл
-#endif
-
-      if (http.GET() == HTTP_CODE_OK) { // файл доступен
-        // загружаем в память. Результат > 0 - успешно
-        if (http.writeToStream(&f) > 0) OK = true;
-      }
-      http.end();   // закрываем соединение
-      f.close();    // закрываем файл
+void handleNewMessages(int numNewMessages)
+{
+    Serial.println("new message");
+    for (int i = 0; i < numNewMessages; i++)
+    {
+        String chat_id = bot.messages[i].chat_id;
+        String text = bot.messages[i].text;
+        String from_name = bot.messages[i].from_name;
+        if (from_name == "")
+            from_name = "Guest";
+        if (text == "/start")
+        {
+            bot.sendMessageWithReplyKeyboard(chat_id, "Меню", "", "[[\"Текущие показатели\"], [\"Эталонные показатели\"], [\"Обратная связь\"]]");
+        }
+        if (text == "Текущие показатели")
+        {
+            bot.sendMessage(chat_id, 
+                String("Температура: \n") +
+                String("    Первый датчик: ") + String(getTemperatureSensorInfo(0)) + String(" °C\n") +
+                String("    Второй датчик: ") + String(getTemperatureSensorInfo(1)) + String(" °C\n") +
+                String("Концентрация CO2: \n") +
+                String("    Первый датчик: ") + String(getCarbonSensorInfo(0)) + String(" ppm\n") +
+                String("    Второй датчик: ") + String(getCarbonSensorInfo(1)) + String(" ppm\n") +
+                String("Влажность: \n") +
+                String("    Первый датчик: ") + String(getHumiditySensorInfo(0)) + String("%\n") +
+                String("    Второй датчик: ") + String(getHumiditySensorInfo(1)) + String("%\n")
+            );
+        }
+        // if (text == "Обратная связь")
+        // {
+        //     bot.sendMessageWithReplyKeyboard(chat_id, "Обратная связь", "", "[[{\"text\": \"Отзыв\", \"url\": \"https://google.com\"}], [{\"text\": \"Тех. поддержка\", \"url\": \"https://yandex.ru\"}]]");
+        // }
     }
-    Serial.println(OK ? "OK" : "Error");
-  }
 }
 
-void loop() {
-  bot.tick();
-  server.handleClient();
+void setup()
+{
+    Serial.begin(9600);
+    if(!LittleFS.begin()){
+        Serial.println("Failed to mount LittleFS");
+    }else{
+        Serial.println("zaebis");
+    }
+    File file = LittleFS.open("test.txt", "r");
+    Serial.println(file.available());
+    char* buffer = new char[128];
+    file.read(reinterpret_cast<uint8_t*>(buffer), 128);
+    Serial.println(buffer);
+    // randomSeed(analogRead(0));
+    // Serial.begin(9600);
+    // Serial.println();
+    // configTime(0, 0, "pool.ntp.org");
+    // secured_client.setTrustAnchors(&cert);
+    // WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    // while (WiFi.status() != WL_CONNECTED)
+    // {
+
+    //     delay(500);
+    // }
+    // Serial.print("WiFi connected. IP address: ");
+    // Serial.println(WiFi.localIP());
+    // Serial.print("Retrieving time: ");
+    // time_t now = time(nullptr);
+    // while (now < 24 * 3600)
+    // {
+    //     delay(100);
+    //     now = time(nullptr);
+    // }
+
 }
 
-// веб-сервер для проверки файлов (файловый менеджер)
-void setWebface() {
-  // запускаем FS для проверки
-  if (!LittleFS.begin()) {
-    Serial.println("FS Error");
-    return;
-  }
+void loop()
+{
+    // if (millis() - bot_lasttime > BOT_MTBS)
+    // {
+    //     int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+    //     while (numNewMessages)
+    //     {
 
-  server.begin();
-  server.on("/", []() {
-    String str;
-    str += F("<!DOCTYPE html>\n");
-    str += F("<html><body>\n");
-
-#ifdef ESP8266
-    Dir dir = LittleFS.openDir("/");
-    while (dir.next()) {
-      if (dir.isFile()) {
-        str += F("<a href=\"/");
-        str += dir.fileName();
-        str += F("\">");
-        str += dir.fileName();
-        str += F("</a><br>\n");
-      }
-    }
-#else
-    File root = LittleFS.open("/");
-    File file = root.openNextFile();
-    while (file) {
-      if (!file.isDirectory()) {
-        str += F("<a href=\"/");
-        str += file.name();
-        str += F("\">");
-        str += file.name();
-        str += F("</a><br>\n");
-      }
-      file = root.openNextFile();
-    }
-#endif
-
-    str += F("</body></html>");
-    server.send(200, "text/html", str);
-  });
-
-  // выбор файла (url - имя файла) - выводит файл в браузере
-  server.onNotFound([]() {
-    File file = LittleFS.open(server.uri(), "r");
-    if (!file) {
-      server.send(200, "text/plain", "Error");
-      return;
-    }
-    server.streamFile(file, "text/plain");
-    file.close();
-  });
-}
-
-void connectWiFi() {
-  delay(2000);
-  Serial.begin(115200);
-  Serial.println();
-
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-    if (millis() > 15000) ESP.restart();
-  }
-  Serial.println("Connected");
+    //         handleNewMessages(numNewMessages);
+    //         numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+    //     }
+    //     bot_lasttime = millis();
+    // }
 }
