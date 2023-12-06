@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+    <head>
+        <title>Wi-Fi Manager</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="bootstrap.min.css">
+    </head>
+    <body class="bg-dark text-light">
+        <div class="position-absolute top-50 start-50 translate-middle">
+            <div class="container-fluid">
+                <div class="card text-dark bg-info mb-3">
+                    <div class="card-header"><h2><center><b>ESP32 Wi-Fi Manager</b></center></h2></div>
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <form method="POST">
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text">SSID</span>
+                                    <input type="text" class="form-control" name="ssid" aria-describedby="inputGroup-sizing-default">
+                                </div>
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text">PSK</span>
+                                    <input type="password" name="pass" class="form-control">
+                                </div>
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text">IP Addr</span>
+                                    <input type="text" class="form-control" name="ip" aria-describedby="inputGroup-sizing-default" placeholder="192.168.0.100">
+                                </div>
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text">Gateway Addr</span>
+                                    <input type="text" class="form-control" name="gateway" aria-describedby="inputGroup-sizing-default" placeholder="192.168.0.1">
+                                </div>
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text">Telegram Bot Token</span>
+                                    <input type="text" class="form-control" name="gateway" aria-describedby="inputGroup-sizing-default" placeholder="192.168.0.1">
+                                </div>
+                                <center><button type="submit" class="btn btn-success">Submit</button></center>
+                            </form>
+                        </h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
