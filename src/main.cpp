@@ -11,6 +11,7 @@ const char *ssidPath = "/ssid.txt";
 const char *passPath = "/pass.txt";
 const char *ipPath = "/ip.txt";
 const char *gatewayPath = "/gateway.txt";
+const char *token_path = "/token.txt";
 
 const char *PARAM_INPUT_1 = "ssid";
 const char *PARAM_INPUT_2 = "pass";
@@ -280,6 +281,14 @@ void setup()
                         Serial.println(gateway);
                         // Write file to save value
                         writeFile(LittleFS, gatewayPath, gateway.c_str());
+                    }
+                    if (p->name() == PARAM_INPUT_5)
+                    { // Получаем POST запрос про токен бота
+                        token = p->value().c_str();
+                        Serial.print("Bot token set to: ");
+                        Serial.println(token);
+                        // Write file to save value
+                        writeFile(LittleFS, tokenPath, token.c_str());
                     }
                 }
             }
