@@ -8,7 +8,7 @@
 #include <WiFiClientSecure.h>
 
 bool wifi_need_reset = true;
-constexpr int WIFI_RESET_PIN = 4;
+constexpr int WIFI_RESET_PIN = FUNC_GPIO4;
 
 // Пути файлов
 const char *ssidPath = "/ssid.txt";
@@ -206,13 +206,105 @@ bool initWiFi()
     return true;
 }
 
+void set_normal_mode(){
+    // Открываем успешную страницу index.html
+    server.on("/", HTTP_GET,
+                [](AsyncWebServerRequest *request) { request->send(LittleFS, "/index.html", "text/html"); });
+    server.serveStatic("/", LittleFS, "/");
+
+    server.on("/bootstrap.min.css", HTTP_GET, [](AsyncWebServerRequest *request) { // Подключаем стили
+        request->send(LittleFS, "/bootstrap.min.css", "text/css");
+    });
+    server.begin();
+}
+
+void set_ap(){
+    Serial.println("Setting AP (Access Point)"); // Раздаем точку доступа
+    WiFi.softAP("ESP-CONNECT", NULL); // Создаем открытую точку доступа с именем ESP-CONNECT
+
+    IPAddress IP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(IP);
+
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) { // Запускаем сервер с формой конфигурации
+        request->send(LittleFS, "/conf.html", "text/html");
+    });
+
+    server.on("/bootstrap.min.css", HTTP_GET, [](AsyncWebServerRequest *request) { // Подключаем стили
+        request->send(LittleFS, "/bootstrap.min.css", "text/css");
+    });
+
+    server.serveStatic("/", LittleFS, "/");
+
+    // Получаем данные из формы, если пришел запрос
+    server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
+        int params = request->params();
+        for (int i = 0; i < params; i++)
+        {
+            AsyncWebParameter *p = request->getParam(i);
+            if (p->isPost())
+            {
+                if (p->name() == PARAM_INPUT_1)
+                { // Получаем имя сети из формы
+                    ssid = p->value().c_str();
+                    Serial.print("SSID set to: ");
+                    Serial.println(ssid);
+                    // Write file to save value
+                    writeFile(LittleFS, ssidPath, ssid.c_str());
+                }
+                if (p->name() == PARAM_INPUT_2)
+                { // Получаем пароль из формы
+                    pass = p->value().c_str();
+                    Serial.print("Password set to: ");
+                    Serial.println(pass);
+                    // Write file to save value
+                    writeFile(LittleFS, passPath, pass.c_str());
+                }
+                if (p->name() == PARAM_INPUT_3)
+                { // Получаем POST запрос про IP
+                    ip = p->value().c_str();
+                    Serial.print("IP Address set to: ");
+                    Serial.println(ip);
+                    // Write file to save value
+                    writeFile(LittleFS, ipPath, ip.c_str());
+                }
+                if (p->name() == PARAM_INPUT_4)
+                { // Получаем POST запрос про Gateway путь
+                    gateway = p->value().c_str();
+                    Serial.print("Gateway set to: ");
+                    Serial.println(gateway);
+                    // Write file to save value
+                    writeFile(LittleFS, gatewayPath, gateway.c_str());
+                }
+                if (p->name() == PARAM_INPUT_5)
+                { // Получаем POST запрос про токен бота
+                    token = p->value().c_str();
+                    Serial.print("Bot token set to: ");
+                    Serial.println(token);
+                    // Write file to save value
+                    writeFile(LittleFS, tokenPath, token.c_str());
+                }
+            }
+        }
+        request->send(200, "text/plain", "Успешно, esp перезагрузиться и получит адрес:" + ip);
+        set_normal_mode();
+        server.end();
+    });
+    server.begin();
+}
+
+void set_reset_wifi(){
+    wifi_need_reset = true;
+}
+
 void reset_wifi(){
     writeFile(LittleFS, ssidPath, "");
     writeFile(LittleFS, passPath, "");
     writeFile(LittleFS, gatewayPath, "");
     writeFile(LittleFS, ipPath, "");
     writeFile(LittleFS, tokenPath, "");
-    ESP.restart();
+    set_ap();
+    wifi_need_reset = false;
 }
 
 void setup()
@@ -223,7 +315,7 @@ void setup()
     {
         Serial.println("Failed to mount LittleFS");
     }
-    attachInterrupt(digitalPinToInterrupt(WIFI_RESET_PIN), reset_wifi, RISING);
+    pinMode(WIFI_RESET_PIN, INPUT);
     if (wifi_need_reset){
         reset_wifi();
     }
@@ -241,91 +333,13 @@ void setup()
 
     if (initWiFi())
     {
-        // Открываем успешную страницу index.html
-        server.on("/", HTTP_GET,
-                  [](AsyncWebServerRequest *request) { request->send(LittleFS, "/index.html", "text/html"); });
-        server.serveStatic("/", LittleFS, "/");
-
-        server.on("/bootstrap.min.css", HTTP_GET, [](AsyncWebServerRequest *request) { // Подключаем стили
-            request->send(LittleFS, "/bootstrap.min.css", "text/css");
-        });
-        server.begin();
+        set_normal_mode();
     }
     else
     {
-        Serial.println("Setting AP (Access Point)"); // Раздаем точку доступа
-        WiFi.softAP("ESP-CONNECT", NULL); // Создаем открытую точку доступа с именем ESP-CONNECT
-
-        IPAddress IP = WiFi.softAPIP();
-        Serial.print("AP IP address: ");
-        Serial.println(IP);
-
-        server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) { // Запускаем сервер с формой конфигурации
-            request->send(LittleFS, "/conf.html", "text/html");
-        });
-
-        server.on("/bootstrap.min.css", HTTP_GET, [](AsyncWebServerRequest *request) { // Подключаем стили
-            request->send(LittleFS, "/bootstrap.min.css", "text/css");
-        });
-
-        server.serveStatic("/", LittleFS, "/");
-
-        // Получаем данные из формы, если пришел запрос
-        server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
-            int params = request->params();
-            for (int i = 0; i < params; i++)
-            {
-                AsyncWebParameter *p = request->getParam(i);
-                if (p->isPost())
-                {
-                    if (p->name() == PARAM_INPUT_1)
-                    { // Получаем имя сети из формы
-                        ssid = p->value().c_str();
-                        Serial.print("SSID set to: ");
-                        Serial.println(ssid);
-                        // Write file to save value
-                        writeFile(LittleFS, ssidPath, ssid.c_str());
-                    }
-                    if (p->name() == PARAM_INPUT_2)
-                    { // Получаем пароль из формы
-                        pass = p->value().c_str();
-                        Serial.print("Password set to: ");
-                        Serial.println(pass);
-                        // Write file to save value
-                        writeFile(LittleFS, passPath, pass.c_str());
-                    }
-                    if (p->name() == PARAM_INPUT_3)
-                    { // Получаем POST запрос про IP
-                        ip = p->value().c_str();
-                        Serial.print("IP Address set to: ");
-                        Serial.println(ip);
-                        // Write file to save value
-                        writeFile(LittleFS, ipPath, ip.c_str());
-                    }
-                    if (p->name() == PARAM_INPUT_4)
-                    { // Получаем POST запрос про Gateway путь
-                        gateway = p->value().c_str();
-                        Serial.print("Gateway set to: ");
-                        Serial.println(gateway);
-                        // Write file to save value
-                        writeFile(LittleFS, gatewayPath, gateway.c_str());
-                    }
-                    if (p->name() == PARAM_INPUT_5)
-                    { // Получаем POST запрос про токен бота
-                        token = p->value().c_str();
-                        Serial.print("Bot token set to: ");
-                        Serial.println(token);
-                        // Write file to save value
-                        writeFile(LittleFS, tokenPath, token.c_str());
-                    }
-                }
-            }
-            request->send(200, "text/plain", "Успешно, esp перезагрузиться и получит адрес:" + ip);
-            delay(3000);
-            ESP.restart(); // Перезагружаем esp
-        });
-        server.begin(); // Запускаем сервер в любом случае
+        set_ap();
     }
+
 
     if (token == ""){
         Serial.println("No bot token, can't start bot");
@@ -339,7 +353,7 @@ void setup()
 
 void loop()
 {
-    if (wifi_need_reset){
+    if (digitalRead(WIFI_RESET_PIN)){
         reset_wifi();
     }
     if (millis() - bot_lasttime > BOT_MTBS)
