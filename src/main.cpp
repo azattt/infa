@@ -1,17 +1,21 @@
 #include "LittleFS.h"
-#include <ESP8266TrueRandom.h>
+
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
+#include <ESP8266TrueRandom.h>
 #include <ESPAsyncWebServer.h>
 #include <UniversalTelegramBot.h>
 #include <WiFiClientSecure.h>
+
+bool wifi_need_reset = true;
+constexpr int WIFI_RESET_PIN = 4;
 
 // Пути файлов
 const char *ssidPath = "/ssid.txt";
 const char *passPath = "/pass.txt";
 const char *ipPath = "/ip.txt";
 const char *gatewayPath = "/gateway.txt";
-const char *token_path = "/token.txt";
+const char *tokenPath = "/token.txt";
 
 const char *PARAM_INPUT_1 = "ssid";
 const char *PARAM_INPUT_2 = "pass";
@@ -39,7 +43,7 @@ const unsigned long BOT_MTBS = 100;
 X509List cert(TELEGRAM_CERTIFICATE_ROOT);
 WiFiClientSecure secured_client;
 unsigned long bot_lasttime;
-UniversalTelegramBot bot;
+UniversalTelegramBot bot("", secured_client);
 
 int getCarbonSensorInfo(int sensor_id)
 {
@@ -78,42 +82,45 @@ int getTemperatureSensorInfo(int sensor_id)
     return INT_MAX;
 }
 
-// void handleNewMessages(int numNewMessages)
-// {
-//     Serial.printf("new message");
-//     for (int i = 0; i < numNewMessages; i++)
-//     {
-//         String chat_id = bot.messages[i].chat_id;
-//         String text = bot.messages[i].text;
-//         String from_name = bot.messages[i].from_name;
-//         if (from_name == "")
-//             from_name = "Guest";
-//         if (text == "/start")
-//         {
-//             bot.sendMessageWithReplyKeyboard(chat_id, "Меню", "", "[[\"Текущие показатели\"], [\"Эталонные
-//             показатели\"], [\"Обратная связь\"]]");
-//         }
-//         if (text == "Текущие показатели")
-//         {
-//             bot.sendMessage(chat_id,
-//                 String("Температура: \n") +
-//                 String("    Первый датчик: ") + String(getTemperatureSensorInfo(0)) + String(" °C\n") +
-//                 String("    Второй датчик: ") + String(getTemperatureSensorInfo(1)) + String(" °C\n") +
-//                 String("Концентрация CO2: \n") +
-//                 String("    Первый датчик: ") + String(getCarbonSensorInfo(0)) + String(" ppm\n") +
-//                 String("    Второй датчик: ") + String(getCarbonSensorInfo(1)) + String(" ppm\n") +
-//                 String("Влажность: \n") +
-//                 String("    Первый датчик: ") + String(getHumiditySensorInfo(0)) + String("%\n") +
-//                 String("    Второй датчик: ") + String(getHumiditySensorInfo(1)) + String("%\n")
-//             );
-//         }
-//         // if (text == "Обратная связь")
-//         // {
-//         //     bot.sendMessageWithReplyKeyboard(chat_id, "Обратная связь", "", "[[{\"text\": \"Отзыв\", \"url\":
-//         \"https://google.com\"}], [{\"text\": \"Тех. поддержка\", \"url\": \"https://yandex.ru\"}]]");
-//         // }
-//     }
-// }
+void handleNewMessages(int numNewMessages)
+{
+    Serial.printf("new message");
+    for (int i = 0; i < numNewMessages; i++)
+    {
+        String chat_id = bot.messages[i].chat_id;
+        String text = bot.messages[i].text;
+        String from_name = bot.messages[i].from_name;
+        if (from_name == "")
+            from_name = "Guest";
+        if (text == "/start")
+        {
+            bot.sendMessageWithReplyKeyboard(chat_id, "Меню", "", "[[\"Текущие показатели\"], [\"Эталонные" \
+    "показатели\"], [\"Обратная связь\"]]");
+        }
+        if (text == "Текущие показатели")
+        {
+            bot.sendMessage(chat_id,
+                String("Температура: \n") +
+                String("    Первый датчик: ") + String(getTemperatureSensorInfo(0)) + String(" °C\n") +
+                String("    Второй датчик: ") + String(getTemperatureSensorInfo(1)) + String(" °C\n") +
+                String("Концентрация CO2: \n") +
+                String("    Первый датчик: ") + String(getCarbonSensorInfo(0)) + String(" ppm\n") +
+                String("    Второй датчик: ") + String(getCarbonSensorInfo(1)) + String(" ppm\n") +
+                String("Влажность: \n") +
+                String("    Первый датчик: ") + String(getHumiditySensorInfo(0)) + String("%\n") +
+                String("    Второй датчик: ") + String(getHumiditySensorInfo(1)) + String("%\n")
+            );
+        }
+        if (text == "Обратная связь")
+        {
+            bot.sendMessageWithReplyKeyboard(chat_id, "Обратная связь", "", "[[{\"text\": \"Отзыв\", \"url\":"\
+        "https://google.com\"}], [{\"text\": \"Тех. поддержка\", \"url\": \"https://yandex.ru\"}]]");
+        }
+    }
+}
+
+
+
 
 String readFile(fs::FS &fs, const char *path)
 {
@@ -158,21 +165,27 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 // Функция инициализации wifi
 bool initWiFi()
 {
-    if (ssid == "" || ip == "" || token == "")
+    if (ssid == "" || pass == "")
     {
-        Serial.println("Undefined SSID or IP address.");
+        Serial.println("Undefined SSID or password.");
         return false;
     }
 
     WiFi.mode(WIFI_STA);
-    localIP.fromString(ip.c_str());
-    localGateway.fromString(gateway.c_str());
+    if (ip == "" || gateway == ""){
+        Serial.println("Undefined ip or gateway, skipping configuration part.");
+    }else{
+        localIP.fromString(ip.c_str());
+        localGateway.fromString(gateway.c_str());
 
-    if (!WiFi.config(localIP, localGateway, subnet))
-    {
-        Serial.println("STA Failed to configure");
-        return false;
+        if (!WiFi.config(localIP, localGateway, subnet))
+        {
+            Serial.println("STA Failed to configure");
+            return false;
+        }
     }
+    Serial.println(ssid);
+    Serial.println(pass);
     WiFi.begin(ssid.c_str(), pass.c_str());
     Serial.println("Connecting to WiFi...");
 
@@ -193,6 +206,15 @@ bool initWiFi()
     return true;
 }
 
+void reset_wifi(){
+    writeFile(LittleFS, ssidPath, "");
+    writeFile(LittleFS, passPath, "");
+    writeFile(LittleFS, gatewayPath, "");
+    writeFile(LittleFS, ipPath, "");
+    writeFile(LittleFS, tokenPath, "");
+    ESP.restart();
+}
+
 void setup()
 {
     Serial.begin(74800);
@@ -201,16 +223,22 @@ void setup()
     {
         Serial.println("Failed to mount LittleFS");
     }
+    attachInterrupt(digitalPinToInterrupt(WIFI_RESET_PIN), reset_wifi, RISING);
+    if (wifi_need_reset){
+        reset_wifi();
+    }
 
     pinMode(ledPin, OUTPUT); // Светодиод на выход
     digitalWrite(ledPin, LOW);
 
     // Загружаем в переменные данные из LitteFS
 
-    ssid = LittleFS.open(ssidPath, "r").readString();
-    pass = LittleFS.open(passPath, "r").readString();
-    ip = LittleFS.open(ip, "r").readString();
-    gateway = LittleFS.open(gatewayPath, "r").readString();
+    ssid = readFile(LittleFS, ssidPath);
+    pass = readFile(LittleFS, passPath);
+    ip = readFile(LittleFS, ipPath);
+    gateway = readFile(LittleFS, gatewayPath);
+    token = readFile(LittleFS, tokenPath);
+
     if (initWiFi())
     {
         // Открываем успешную страницу index.html
@@ -299,22 +327,21 @@ void setup()
         server.begin(); // Запускаем сервер в любом случае
     }
 
+    if (token == ""){
+        Serial.println("No bot token, can't start bot");
+        return;
+    }
     randomSeed(analogRead(0));
     configTime(0, 0, "pool.ntp.org");
-    secured_client.setTrustAnchors(&cert);
-
-    UniversalTelegramBot bot(token, secured_client);
-
-    // time_t now = time(nullptr);
-    // while (now < 24 * 3600)
-    // {
-    //     delay(100);
-    //     now = time(nullptr);
-    // }
+    secured_client.setTrustAnchors(&cert);    
+    bot.updateToken(token);
 }
 
 void loop()
 {
+    if (wifi_need_reset){
+        reset_wifi();
+    }
     if (millis() - bot_lasttime > BOT_MTBS)
     {
         int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
