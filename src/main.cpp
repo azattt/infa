@@ -8,7 +8,7 @@
 #include <WiFiClientSecure.h>
 
 bool wifi_need_reset = true;
-constexpr int WIFI_RESET_PIN = FUNC_GPIO4;
+constexpr int WIFI_RESET_PIN = FUNC_GPIO6;
 
 // Пути файлов
 const char *ssidPath = "/ssid.txt";
@@ -146,19 +146,19 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 { // Функция записи файла в spiffs
     Serial.printf("Writing file: %s\r\n", path);
 
-    File file = fs.open(path, "w");
+    File file = fs.open(path, "w+");
     if (!file)
     {
         Serial.println("- failed to open file for writing");
         return;
     }
-    if (file.print(message))
+    if (file.write(message))
     {
         Serial.println("- file written");
     }
     else
     {
-        Serial.println("- frite failed");
+        Serial.println("- write failed");
     }
 }
 
@@ -303,7 +303,6 @@ void reset_wifi(){
     writeFile(LittleFS, gatewayPath, "");
     writeFile(LittleFS, ipPath, "");
     writeFile(LittleFS, tokenPath, "");
-    set_ap();
     wifi_need_reset = false;
 }
 
@@ -353,8 +352,10 @@ void setup()
 
 void loop()
 {
-    if (digitalRead(WIFI_RESET_PIN)){
+    if (digitalRead(WIFI_RESET_PIN) == LOW){
+        Serial.println("reset from loop");
         reset_wifi();
+        set_ap();
     }
     if (millis() - bot_lasttime > BOT_MTBS)
     {
