@@ -10,7 +10,7 @@
         <div class="position-absolute top-50 start-50 translate-middle">
             <div class="container-fluid">
                 <div class="card text-dark bg-info mb-3">
-                    <div class="card-header"><h2><center><b>ESP32 Wi-Fi Manager</b></center></h2></div>
+                    <div class="card-header"><h2><center><b>Wi-Fi Manager</b></center></h2></div>
                     <div class="card-body">
                         <h5 class="card-title">
                             <form method="POST">
@@ -23,16 +23,12 @@
                                     <input required type="password" name="pass" class="form-control">
                                 </div>
                                 <div class="input-group mb-3">
-                                    <span class="input-group-text">IP Addr</span>
-                                    <input type="text" class="form-control" name="ip" aria-describedby="inputGroup-sizing-default" placeholder="192.168.0.100">
-                                </div>
-                                <div class="input-group mb-3">
-                                    <span class="input-group-text">Gateway Addr</span>
-                                    <input type="text" class="form-control" name="gateway" aria-describedby="inputGroup-sizing-default" placeholder="192.168.0.1">
-                                </div>
-                                <div class="input-group mb-3">
                                     <span class="input-group-text">Telegram Bot Token</span>
-                                    <input required type="text" class="form-control" name="gateway" aria-describedby="inputGroup-sizing-default" placeholder="">
+                                    <input required type="text" class="form-control" name="token" aria-describedby="inputGroup-sizing-default" placeholder="">
+                                </div>
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text">Telegram id</span>
+                                    <input required type="text" class="form-control" name="ownerid" aria-describedby="inputGroup-sizing-default" placeholder="">
                                 </div>
                                 <center><button type="submit" class="btn btn-success">Submit</button></center>
                             </form>
