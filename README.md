@@ -11,8 +11,7 @@ https://amperkot.ru/blog/wifi-manager-esp32/?ysclid=lpspybwo2a967954500
 По умолчанию SSID и пароль WIFI не заданы, поэтому ESP8266 сама раздает WIFI-точку (Access Point). Далее, пользователь подключается к WIFI и вводит данные от реальной WIFI-сети. Для сброса нужно сбросить конфигурационные файлы во флеш-памяти (ssid.txt, pass.txt, ...) или подключить настоящую кнопку к какому-то там пину (настраивается в коде GPIO чето там).<br><br>
 Демонстрация работы:<br><br>
 
-![Untitled](https://github.com/azattt/infa/assets/50748347/28cc04aa-c315-46b0-9f1a-6f17bd42e6e2)
-
+![Untitled](https://github.com/azattt/infa/assets/50748347/fbd95af6-d604-46ae-b2d6-07dab1ab3780)
 
 <br>
 https://youtu.be/ApIVMPZNmh0
